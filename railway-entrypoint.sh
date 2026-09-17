@@ -143,9 +143,15 @@ import_public_asset "interior" \
 
 cat > "$ROOT/router.php" <<'PHP'
 <?php
-$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
 $file = __DIR__ . $path;
 if ($path !== '/' && is_file($file)) return false;
+if ($path === '/') {
+    require_once __DIR__ . '/wp-load.php';
+    status_header(200);
+    $front = get_template_directory() . '/front-page.php';
+    if (is_file($front)) { require $front; exit; }
+}
 require __DIR__ . '/index.php';
 PHP
 
