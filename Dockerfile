@@ -1,4 +1,4 @@
-FROM wordpress:6.8.2-php8.3-fpm
+FROM wordpress:6.8.8-php8.3-fpm
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates unzip default-mysql-client \
