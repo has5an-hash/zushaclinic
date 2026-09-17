@@ -32,7 +32,8 @@ RUN php /tmp/patch-zosha.php \
  && rm -f /tmp/patch-zosha.php
 
 COPY railway-entrypoint.sh /usr/local/bin/zosha-railway-entrypoint
-RUN chmod +x /usr/local/bin/zosha-railway-entrypoint
+COPY runtime-probe.sh /usr/local/bin/zosha-runtime-probe
+RUN chmod +x /usr/local/bin/zosha-railway-entrypoint /usr/local/bin/zosha-runtime-probe
 
 ENV WP_CLI_ALLOW_ROOT=1
-ENTRYPOINT ["zosha-railway-entrypoint"]
+ENTRYPOINT ["zosha-runtime-probe"]
