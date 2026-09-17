@@ -14,6 +14,11 @@ RUN cat /tmp/theme-parts/theme.part* > /tmp/zosha-luxe-theme.zip \
  && unzip -q /tmp/zosha-suite-plugin.zip -d /usr/src/wordpress/wp-content/plugins/ \
  && rm -rf /tmp/theme-parts /tmp/plugin-parts /tmp/zosha-luxe-theme.zip /tmp/zosha-suite-plugin.zip
 
+COPY build/patch-zosha.php /tmp/patch-zosha.php
+RUN php /tmp/patch-zosha.php \
+ && php -l /usr/src/wordpress/wp-content/plugins/zosha-suite/zosha-suite.php \
+ && rm -f /tmp/patch-zosha.php
+
 COPY railway-entrypoint.sh /usr/local/bin/zosha-railway-entrypoint
 RUN chmod +x /usr/local/bin/zosha-railway-entrypoint
 
