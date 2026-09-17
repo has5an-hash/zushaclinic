@@ -5,8 +5,8 @@ ROOT=/var/www/html
 SRC=/usr/src/wordpress
 mkdir -p "$ROOT"
 
-# A Railway volume can start empty. Seed WordPress core once, then refresh our
-# custom theme/plugin on every deploy so code follows the GitHub repository.
+# Seed WordPress into a fresh Railway volume. Custom Zosha code is refreshed
+# on every deployment so production always follows the GitHub repository.
 if [ ! -f "$ROOT/index.php" ]; then
   cp -a "$SRC/." "$ROOT/"
 fi
@@ -21,7 +21,7 @@ fi
 
 cd "$ROOT"
 
-# Wait for MariaDB before bootstrapping WordPress.
+# Wait for the private MariaDB service.
 db_ready=0
 for _ in $(seq 1 90); do
   if wp db check --allow-root --path="$ROOT" >/dev/null 2>&1; then
@@ -53,20 +53,25 @@ if ! wp core is-installed --allow-root --path="$ROOT" >/dev/null 2>&1; then
     --skip-email
 fi
 
+# Keep the persisted core on the latest security patch in the 6.8 line.
+CURRENT_WP="$(wp core version --allow-root --path="$ROOT" 2>/dev/null || true)"
+if [ "$CURRENT_WP" != "6.8.8" ]; then
+  wp core update --version=6.8.8 --force --allow-root --path="$ROOT"
+  wp core update-db --allow-root --path="$ROOT"
+fi
+
 wp option update home "$SITE_URL" --allow-root --path="$ROOT" >/dev/null
 wp option update siteurl "$SITE_URL" --allow-root --path="$ROOT" >/dev/null
 wp option update blogname "کلینیک زیبایی زوشا" --allow-root --path="$ROOT" >/dev/null
 wp option update blogdescription "زیبایی، پوست و مراقبت حرفه‌ای در زوشا" --allow-root --path="$ROOT" >/dev/null
-wp rewrite structure '/%postname%/' --hard --allow-root --path="$ROOT" >/dev/null || true
+wp rewrite structure '/%postname%/' --allow-root --path="$ROOT" >/dev/null || true
 
 wp theme activate zosha-luxe --allow-root --path="$ROOT"
 wp plugin activate zosha-suite --allow-root --path="$ROOT"
 
-if ! wp plugin is-installed woocommerce --allow-root --path="$ROOT" >/dev/null 2>&1; then
-  wp plugin install woocommerce --activate --allow-root --path="$ROOT" || true
-else
-  wp plugin activate woocommerce --allow-root --path="$ROOT" || true
-fi
+# WooCommerce 10.8+ requires WordPress 6.9+. 10.7.0 is pinned for WP 6.8.x.
+wp plugin install woocommerce --version=10.7.0 --force --activate --allow-root --path="$ROOT"
+wp wc tool run update_db --user="${WP_ADMIN_USER:-zoshaadmin}" --allow-root --path="$ROOT" >/dev/null 2>&1 || true
 
 create_page() {
   local title="$1" slug="$2" template="${3:-default}" id
@@ -96,9 +101,17 @@ if ($path !== '/' && is_file($file)) {
 require __DIR__ . '/index.php';
 PHP
 
-echo "ZOSHA_BOOTSTRAP: theme=$(wp theme status zosha-luxe --field=status --allow-root --path="$ROOT" 2>/dev/null || true)"
-echo "ZOSHA_BOOTSTRAP: plugin=$(wp plugin status zosha-suite --field=status --allow-root --path="$ROOT" 2>/dev/null || true)"
-echo "ZOSHA_BOOTSTRAP: woocommerce=$(wp plugin status woocommerce --field=status --allow-root --path="$ROOT" 2>/dev/null || true)"
+THEME_STATE=inactive
+PLUGIN_STATE=inactive
+WOO_STATE=inactive
+wp theme is-active zosha-luxe --allow-root --path="$ROOT" >/dev/null 2>&1 && THEME_STATE=active
+wp plugin is-active zosha-suite --allow-root --path="$ROOT" >/dev/null 2>&1 && PLUGIN_STATE=active
+wp plugin is-active woocommerce --allow-root --path="$ROOT" >/dev/null 2>&1 && WOO_STATE=active
+
+echo "ZOSHA_BOOTSTRAP: wordpress=$(wp core version --allow-root --path="$ROOT")"
+echo "ZOSHA_BOOTSTRAP: theme=$THEME_STATE"
+echo "ZOSHA_BOOTSTRAP: plugin=$PLUGIN_STATE"
+echo "ZOSHA_BOOTSTRAP: woocommerce=$WOO_STATE"
 echo "ZOSHA_BOOTSTRAP: ready $SITE_URL"
 
 exec php -S "0.0.0.0:${PORT:-8080}" -t "$ROOT" "$ROOT/router.php"
