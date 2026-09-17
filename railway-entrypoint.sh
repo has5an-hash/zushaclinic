@@ -21,6 +21,21 @@ if ! grep -q 'ZOSHA_FORCE_FRONT_V2' "$INDEX_FILE"; then
   sed -i '1s#^<?php#<?php /* ZOSHA_FORCE_FRONT_V2 */ if (is_front_page() || is_home()) { require get_template_directory()."/front-page.php"; return; }#' "$INDEX_FILE"
 fi
 
+# Force the premium front-page template at the WordPress template layer.
+mkdir -p "$ROOT/wp-content/mu-plugins"
+cat > "$ROOT/wp-content/mu-plugins/zosha-force-front-v2.php" <<'PHP'
+<?php
+/** Zosha Luxe v2 front-page guard for Railway runtime. */
+add_filter('template_include', function ($template) {
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    if ($path === '/') {
+        $front = get_template_directory() . '/front-page.php';
+        if (is_file($front)) return $front;
+    }
+    return $template;
+}, 999);
+PHP
+
 if [ ! -f "$ROOT/wp-config.php" ]; then
   cp "$ROOT/wp-config-docker.php" "$ROOT/wp-config.php"
 fi
