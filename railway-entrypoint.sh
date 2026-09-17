@@ -67,10 +67,18 @@ create_page() {
     wp post meta update "$id" _wp_page_template "$template" --allow-root --path="$ROOT" >/dev/null
   fi
 }
+create_page "خانه" "home"
 create_page "درباره ما" "about" "page-about.php"
 create_page "تماس با ما" "contact" "page-contact.php"
 create_page "رزرو آنلاین" "booking"
 create_page "حساب من" "my-account"
+
+HOME_ID="$(wp post list --post_type=page --name=home --field=ID --allow-root --path="$ROOT" | head -n1)"
+if [ -n "$HOME_ID" ]; then
+  wp option update show_on_front page --allow-root --path="$ROOT" >/dev/null
+  wp option update page_on_front "$HOME_ID" --allow-root --path="$ROOT" >/dev/null
+  echo "ZOSHA_BOOTSTRAP: front_page=$HOME_ID"
+fi
 
 BOOKING_ID="$(wp post list --post_type=page --name=booking --field=ID --allow-root --path="$ROOT" | head -n1)"
 ACCOUNT_ID="$(wp post list --post_type=page --name=my-account --field=ID --allow-root --path="$ROOT" | head -n1)"
