@@ -66,11 +66,11 @@ wp option update blogname "کلینیک زیبایی زوشا" --allow-root --pa
 wp option update blogdescription "زیبایی، پوست و مراقبت حرفه‌ای در زوشا" --allow-root --path="$ROOT" >/dev/null
 wp rewrite structure '/%postname%/' --allow-root --path="$ROOT" >/dev/null || true
 
-wp theme activate zosha-luxe --allow-root --path="$ROOT"
-wp plugin activate zosha-suite --allow-root --path="$ROOT"
+wp theme activate zosha-luxe --allow-root --path="$ROOT" >/dev/null 2>&1 || true
+wp plugin activate zosha-suite --allow-root --path="$ROOT" >/dev/null 2>&1 || true
 
 # WooCommerce 10.8+ requires WordPress 6.9+. 10.7.0 is pinned for WP 6.8.x.
-wp plugin install woocommerce --version=10.7.0 --force --activate --allow-root --path="$ROOT"
+wp plugin install woocommerce --version=10.7.0 --force --activate --allow-root --path="$ROOT" >/dev/null
 wp wc tool run update_db --user="${WP_ADMIN_USER:-zoshaadmin}" --allow-root --path="$ROOT" >/dev/null 2>&1 || true
 
 create_page() {
@@ -89,6 +89,14 @@ create_page "تماس با ما" "contact" "page-contact.php"
 create_page "خدمات" "services"
 create_page "نمونه کارها" "portfolio"
 create_page "دانستنی‌های زوشا" "blog"
+create_page "رزرو آنلاین" "booking"
+create_page "حساب من" "my-account"
+
+# Ensure the custom shortcodes are present even if the pages existed beforehand.
+BOOKING_ID="$(wp post list --post_type=page --name=booking --field=ID --allow-root --path="$ROOT" | head -n1)"
+ACCOUNT_ID="$(wp post list --post_type=page --name=my-account --field=ID --allow-root --path="$ROOT" | head -n1)"
+[ -n "$BOOKING_ID" ] && wp post update "$BOOKING_ID" --post_content='[zosha_booking]' --allow-root --path="$ROOT" >/dev/null
+[ -n "$ACCOUNT_ID" ] && wp post update "$ACCOUNT_ID" --post_content='[zosha_dashboard]' --allow-root --path="$ROOT" >/dev/null
 
 # Router for PHP's built-in server so pretty permalinks work without Apache/Nginx.
 cat > "$ROOT/router.php" <<'PHP'
@@ -114,4 +122,16 @@ echo "ZOSHA_BOOTSTRAP: plugin=$PLUGIN_STATE"
 echo "ZOSHA_BOOTSTRAP: woocommerce=$WOO_STATE"
 echo "ZOSHA_BOOTSTRAP: ready $SITE_URL"
 
-exec php -S "0.0.0.0:${PORT:-8080}" -t "$ROOT" "$ROOT/router.php"
+PORT_NUM="${PORT:-8080}"
+PUBLIC_HOST="${RAILWAY_PUBLIC_DOMAIN:-wordpress-production-9ffa.up.railway.app}"
+(
+  sleep 3
+  for PAGE in / /about/ /contact/ /services/ /portfolio/ /blog/ /booking/ /my-account/; do
+    CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
+      -H "Host: $PUBLIC_HOST" -H 'X-Forwarded-Proto: https' \
+      "http://127.0.0.1:${PORT_NUM}${PAGE}" || true)"
+    echo "ZOSHA_QA: ${PAGE}=${CODE}"
+  done
+) &
+
+exec php -S "0.0.0.0:${PORT_NUM}" -t "$ROOT" "$ROOT/router.php"
