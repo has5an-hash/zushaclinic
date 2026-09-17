@@ -13,6 +13,14 @@ rm -rf "$ROOT/wp-content/themes/zosha-luxe" "$ROOT/wp-content/plugins/zosha-suit
 cp -a "$SRC/wp-content/themes/zosha-luxe" "$ROOT/wp-content/themes/"
 cp -a "$SRC/wp-content/plugins/zosha-suite" "$ROOT/wp-content/plugins/"
 
+# Railway/PHP built-in routing can fall back to index.php for / even when a
+# static front page is configured. Make index.php hand the home request to
+# front-page.php so the premium visual shell is guaranteed to render.
+INDEX_FILE="$ROOT/wp-content/themes/zosha-luxe/index.php"
+if ! grep -q 'ZOSHA_FORCE_FRONT_V2' "$INDEX_FILE"; then
+  sed -i '1s#^<?php#<?php /* ZOSHA_FORCE_FRONT_V2 */ if (is_front_page() || is_home()) { require get_template_directory()."/front-page.php"; return; }#' "$INDEX_FILE"
+fi
+
 if [ ! -f "$ROOT/wp-config.php" ]; then
   cp "$ROOT/wp-config-docker.php" "$ROOT/wp-config.php"
 fi
